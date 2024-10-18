@@ -88,12 +88,12 @@ async function fetchAlbumArt() {
     }
 
     // If no valid art file is found, or if the art hasn't changed, use default
-    if (!mostRecentArtUrl || mostRecentArtUrl === lastArtUrl) {
-        console.warn("No new album art found, using default.");
+    if (!mostRecentArtUrl) {
+        console.warn("No valid album art found, using default.");
         mostRecentArtUrl = "default-art.png";  // Fallback option
     }
 
-    // Update the album art on the page
+    // Always update the album art, even if it's the same as before
     lastArtUrl = mostRecentArtUrl;
     document.getElementById('album-art').src = mostRecentArtUrl;
     console.log("Album art updated:", mostRecentArtUrl);

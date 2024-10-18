@@ -2,112 +2,74 @@ import os
 import time
 import requests
 import mimetypes
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
-# Set up the WebDriver (e.g., Chrome)
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # Run Chrome in headless mode for background execution
-chrome_options.add_argument('--no-sandbox')  # Necessary for some environments
-chrome_options.add_argument('--disable-dev-shm-usage')
-driver = webdriver.Chrome(options=chrome_options)  # Make sure ChromeDriver is installed and in your PATH
-
-url = "https://coreradio.online/listen"  # Replace with the URL of the webpage
-
-# Get the directory where the script is located
+# Path where album art files are saved
 script_directory = os.path.dirname(os.path.abspath(__file__))
-
-# Set the path to `current_track.txt` in the same directory as the script
 track_file = os.path.join(script_directory, "current_track.txt")
 
-# Function to get the modification time of the track file
-def get_file_mtime(filepath):
+# Function to delete all existing album art files (art.jpg, art.png, etc.)
+def delete_old_artwork():
+    print("[INFO] Deleting old artwork...")
+    art_files = ['art.jpg', 'art.png', 'art.gif', 'art.jpeg', 'art.webp']
+    for art_file in art_files:
+        full_path = os.path.join(script_directory, art_file)
+        if os.path.exists(full_path):
+            try:
+                os.remove(full_path)
+                print(f"[INFO] Deleted: {art_file}")
+            except OSError as e:
+                print(f"[ERROR] Failed to delete {art_file}: {e}")
+
+# Function to scrape the current album art (if available)
+def fetch_new_album_art(img_url):
     try:
-        return os.path.getmtime(filepath)
-    except OSError:
-        print(f"Error: Cannot access {filepath}")
-        return 0  # Return 0 if the file doesn't exist or can't be accessed
+        response = requests.get(img_url)
+        content_type = response.headers['Content-Type']
+        extension = mimetypes.guess_extension(content_type)
+        if not extension:
+            extension = '.jpg'  # Default to .jpg if type cannot be determined
+        art_file_path = os.path.join(script_directory, f'art{extension}')
+        with open(art_file_path, 'wb') as handler:
+            handler.write(response.content)
+        print(f"[INFO] New album art downloaded: art{extension}")
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Error downloading image: {e}")
 
-# Function to scrape the latest album art immediately
-def scrape_album_art():
-    try:
-        print("Locating album art on the page...")
-        scrape_art = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "cachecover"))
-        )
-        img_element = scrape_art.find_element(By.TAG_NAME, 'img')
+# Function to handle album art on startup
+def handle_startup():
+    print("[INFO] Handling startup album art...")
+    delete_old_artwork()  # Clear any old album art files
 
-        # Wait until the img src is not empty
-        img_url = WebDriverWait(driver, 10).until(
-            lambda driver: img_element.get_attribute('src') if img_element.get_attribute('src') else None
-        )
-        print(f"Scraped image URL: {img_url}")
-
-        return img_url
-
-    except Exception as e:
-        print(f"Error finding image element or downloading image: {e}")
-        return None
-
-# Function to download and save the album art
-def download_album_art(img_url):
+    # Insert logic to scrape current song album art
+    img_url = "URL_TO_FETCH_NEW_ART"  # Replace this with the actual URL scraping logic
     if img_url:
-        try:
-            response = requests.get(img_url)
-            content_type = response.headers['Content-Type']
-            extension = mimetypes.guess_extension(content_type)
-            if not extension:
-                extension = '.jpg'  # Default to .jpg if type cannot be determined
-            # Save the image as "art.file_extension"
-            img_filename = os.path.join(script_directory, f'art{extension}')
-            with open(img_filename, 'wb') as handler:
-                handler.write(response.content)
-            print(f"Album art saved as {img_filename}")
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading image: {e}")
+        fetch_new_album_art(img_url)
     else:
-        print("No image URL provided, skipping download.")
+        print("[INFO] No new album art found on startup. Using default.")
 
-try:
-    # Open the webpage
-    print("Opening the webpage...")
-    driver.get(url)
-    
-    # Scrape album art immediately on script start
-    print("Scraping latest album art on startup...")
-    previous_img_url = scrape_album_art()
-    download_album_art(previous_img_url)
-
-    # Store the previous image URL and file modification time
-    previous_mtime = get_file_mtime(track_file)
-
-    print(f"Initial file modification time: {previous_mtime}")
-    print(f"Monitoring {track_file} for changes...")
+# Monitor for song changes and update artwork
+def monitor_song_changes():
+    previous_song = None
 
     while True:
-        # Get the current modification time of current_track.txt
-        current_mtime = get_file_mtime(track_file)
+        with open(track_file, 'r') as file:
+            current_song = file.readline().strip()  # Read the first line as the current song
 
-        # Check if the track file has been updated
-        if current_mtime != previous_mtime:
-            print(f"Detected change in {track_file} (mtime: {current_mtime}), checking for new album art...")
-            previous_mtime = current_mtime
+        if current_song != previous_song:
+            print(f"[INFO] Song changed to: {current_song}")
+            delete_old_artwork()  # Delete old artwork when song changes
 
-            # Scrape and download new album art if the track file has been updated
-            img_url = scrape_album_art()
-            if img_url != previous_img_url:
-                previous_img_url = img_url
-                download_album_art(img_url)
+            # Insert logic to scrape new album art if available
+            img_url = "URL_TO_FETCH_NEW_ART"  # Replace this with the actual URL scraping logic
+            if img_url:
+                fetch_new_album_art(img_url)  # Fetch the new artwork
             else:
-                print("Album art has not changed.")
+                print("[INFO] No new album art found. Will use default.")
 
-        # Sleep for 2 seconds before checking the content again
-        time.sleep(2)
+            previous_song = current_song  # Update previous song
 
-except Exception as e:
-    print(f"An error occurred: {e}")
-finally:
-    driver.quit()
+        time.sleep(10)  # Check every 10 seconds for song changes
+
+if __name__ == "__main__":
+    handle_startup()  # Handle album art on startup
+    monitor_song_changes()  # Start monitoring for song changes
