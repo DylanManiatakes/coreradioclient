@@ -1,5 +1,4 @@
 let lastSong = ''; // To track the last song that was shown on the webpage
-let lastArtUrl = ''; // To track the last album art that was shown on the webpage
 
 // Fetch the current song data from current_track.txt
 async function fetchSongData() {
@@ -40,7 +39,10 @@ async function fetchSongData() {
             document.getElementById('song-band').textContent = `Band: ${band}`;
 
             // Fetch and update album art
-            fetchAlbumArt();
+            await fetchAlbumArt(); // Wait for album art to be fetched
+
+            // Fetch and update recently played songs
+            fetchRecentlyPlayed();
 
             // Update the media session metadata (for Android notifications, etc.)
             if ('mediaSession' in navigator) {
@@ -58,51 +60,49 @@ async function fetchSongData() {
     }
 }
 
-// Fetch album art from the server with cache-busting
-async function fetchAlbumArt() {
+// Fetch album art from the server with cache-busting and retry logic
+async function fetchAlbumArt(retries = 3) {
     const possibleExtensions = ['jpg', 'png', 'gif', 'jpeg', 'webp'];
     let mostRecentArtUrl = null;
-    let mostRecentDate = new Date(0);  // Set the initial date to a very old time
 
-    // Introduce a delay (e.g., 3 seconds) to ensure the file is fully updated
+    // Introduce a delay to ensure the album art has time to update
     await new Promise(resolve => setTimeout(resolve, 3000));  // 3-second delay
 
     for (let ext of possibleExtensions) {
         try {
-            const artResponse = await fetch(`art.${ext}?timestamp=${Date.now()}`); // Force cache bypass using Date.now()
+            const artResponse = await fetch(`art.${ext}?timestamp=${Date.now()}`); // Cache-bust
             if (artResponse.ok) {
-                const lastModified = artResponse.headers.get('Last-Modified');
-                if (lastModified) {
-                    const modifiedDate = new Date(lastModified);
-                    if (modifiedDate > mostRecentDate) {
-                        mostRecentDate = modifiedDate;
-                        mostRecentArtUrl = `art.${ext}?timestamp=${Date.now()}`; // Cache bust again here
-                    }
-                }
-            } else {
-                console.warn(`Failed to fetch art.${ext} - status: ${artResponse.status}`);
+                mostRecentArtUrl = `art.${ext}?timestamp=${Date.now()}`;
+                break;
             }
         } catch (error) {
             console.warn(`Error fetching art.${ext}:`, error);
         }
     }
 
-    // If no valid art file is found, or if the art hasn't changed, use default
-    if (!mostRecentArtUrl) {
-        console.warn("No valid album art found, using default.");
-        mostRecentArtUrl = "default-art.png";  // Fallback option
+    // If no art is found, retry with reduced retries
+    if (!mostRecentArtUrl && retries > 0) {
+        console.log(`Retrying fetchAlbumArt... Retries left: ${retries}`);
+        await new Promise(resolve => setTimeout(resolve, 2000));  // Wait for 2 seconds before retrying
+        return fetchAlbumArt(retries - 1);  // Retry with reduced attempts
     }
 
-    // Always update the album art, even if it's the same as before
-    lastArtUrl = mostRecentArtUrl;
+    // Fallback to default art if no new art is found after retries
+    if (!mostRecentArtUrl) {
+        mostRecentArtUrl = 'default-art.png';
+        console.warn("Using default album art.");
+    }
+
+    // Update the album art
     document.getElementById('album-art').src = mostRecentArtUrl;
-    console.log("Album art updated:", mostRecentArtUrl);
+    console.log("Album art updated to:", mostRecentArtUrl);
 }
 
 // Fetch the last 10 songs from last10.txt
 async function fetchRecentlyPlayed() {
     try {
-        const response = await fetch('last10.txt');
+        console.log("Fetching recently played songs...");
+        const response = await fetch(`last10.txt?timestamp=${Date.now()}`); // Cache-bust
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -127,7 +127,7 @@ async function fetchRecentlyPlayed() {
 // Fetch song data every 10 seconds to keep the page updated
 setInterval(fetchSongData, 10000);
 
-// Fetch recently played songs every 60 seconds
+// Fetch recently played songs every 60 seconds (in case the file updates without song change)
 setInterval(fetchRecentlyPlayed, 60000);
 
 // Initial fetch
