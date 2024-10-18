@@ -5,18 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Now Playing - Core Radio</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Add this link to include the favicon -->
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
     <div class="container">
-        <h1>Now Playing</h1>
-        <audio controls id="audio-player" src="https://coreradio.ru/radio" type="audio/mpeg"></audio>
-        <div id="track-info">
-            <h2 id="song-title">Loading...</h2>
-            <h3 id="song-band">Band: Loading...</h3>
+        <!-- Recently Played Section on the Left -->
+        <div id="recently-played" class="box">
+            <h2>Recently Played</h2>
+            <ul id="recent-songs-list">
+                <!-- Recently played songs will be populated here -->
+            </ul>
+        </div>
+
+        <!-- Now Playing Section on the Right -->
+        <div id="now-playing" class="box">
+            <h1>Now Playing</h1>
+            <div id="track-info">
+                <h2 id="song-title">Loading...</h2>
+                <h3 id="song-band">Band: Loading...</h3>
+            </div>
+            <!-- Media player moved below the track info -->
+            <audio controls id="audio-player" src="https://coreradio.ru/radio" type="audio/mpeg" controlslist="nodownload noremoteplayback"></audio>
             <img id="album-art" src="" alt="Album Art" />
         </div>
     </div>
     <script src="app.js"></script>
 </body>
 </html>
-d

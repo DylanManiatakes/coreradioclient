@@ -1,0 +1,8 @@
+# Ignore current_track.txt
+current_track.txt
+
+# Ignore all art files (jpg, png, etc.)
+art.*
+
+# Ignore last10.txt
+last10.txt
